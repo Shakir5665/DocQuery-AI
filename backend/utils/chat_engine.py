@@ -104,3 +104,70 @@ class ChatEngine:
         Clear conversation memory.
         """
         self.memory.clear()
+
+    def generate_synthesis(
+        self,
+        task: str,
+        relevant_docs: List[Document]
+    ) -> Generator[str, None, None]:
+        """
+        Stream synthesis response for executive summary, FAQ, or key metrics.
+        """
+        if not relevant_docs:
+            yield "No relevant document excerpts found to synthesize. Please ensure a document is properly loaded."
+            return
+
+        context = "\n\n---\n\n".join([doc.page_content for doc in relevant_docs])
+
+        task_instructions = {
+            "summary": (
+                "You are an elite enterprise document analyst. Synthesize a comprehensive Executive Brief based on the provided document context.\n"
+                "Structure your output cleanly in Markdown with these specific sections:\n"
+                "### 🎯 Executive Overview & Purpose\n"
+                "A concise 2-3 sentence thesis explaining the background, context, and fundamental objective.\n\n"
+                "### 🔍 Core Findings & Crucial Insights\n"
+                "- 4-6 high-impact bullet points with **bold lead-ins** detailing key facts, findings, and arguments.\n\n"
+                "### 📊 Notable Outcomes, Limitations or Constraints\n"
+                "- Bullet points on quantitative results, risks, limitations, or boundary conditions.\n\n"
+                "### ⚡ Strategic Recommendations / Next Steps\n"
+                "- Actionable takeaways for stakeholders or readers."
+            ),
+            "faq": (
+                "You are a technical document educator. Generate a high-yield FAQ (Frequently Asked Questions) guide from the provided document context.\n"
+                "Create 6 to 8 essential questions with detailed, context-grounded answers that any reader or stakeholder must know.\n"
+                "Format each entry clearly as:\n"
+                "### Q: [Direct, realistic question?]\n"
+                "**Answer:** [Accurate, grounded explanation. Use bullet points or bold text where appropriate.]\n"
+            ),
+            "metrics": (
+                "You are a quantitative data and entity extraction engine. Extract all critical metrics, numbers, statistics, percentages, milestones, dates, key organizations, and technical specifications from the context.\n"
+                "Format using structured Markdown tables:\n"
+                "### 📈 Key Metrics & Quantitative Data\n"
+                "| Metric / Parameter | Value / Quantity | Context & Significance |\n"
+                "| :--- | :--- | :--- |\n\n"
+                "### 🗓️ Critical Dates, Milestones & Deadlines\n"
+                "| Event / Milestone | Date / Timeframe | Description |\n"
+                "| :--- | :--- | :--- |\n\n"
+                "### 🏛️ Key Entities, Stakeholders & Technologies\n"
+                "- Categorized list of organizations, key people, frameworks, or tools mentioned in the context."
+            )
+        }
+
+        system_instruction = task_instructions.get(task, task_instructions["summary"])
+        prompt = [
+            ("system", f"{system_instruction}\n\nStrict Rule: Answer solely based on the provided context. If certain fields or metrics have no data in the context, explicitly state so without hallucinating.\n\nDocument Context:\n{context}"),
+            ("human", f"Please generate the complete, high-quality {task} analysis for the provided document context.")
+        ]
+
+        for chunk in self.llm.stream(prompt):
+            token_text = ""
+            if isinstance(chunk.content, str):
+                token_text = chunk.content
+            elif isinstance(chunk.content, list):
+                for part in chunk.content:
+                    if isinstance(part, dict) and "text" in part:
+                        token_text += part["text"]
+                    elif isinstance(part, str):
+                        token_text += part
+            if token_text:
+                yield token_text

@@ -37,11 +37,16 @@ session_data = {
     "chunk_count": 0,
     "processing_time": 0.0,
     "messages": [],
-    "query_cache": {}  # In-memory QA Cache
+    "query_cache": {},  # In-memory QA Cache
+    "synthesis_cache": {}  # In-memory Synthesis Cache (summary, faq, metrics)
 }
 
 class QueryRequest(BaseModel):
     question: str
+
+class SynthesisRequest(BaseModel):
+    task: str = "summary"  # "summary", "faq", "metrics"
+    force_refresh: bool = False
 
 @app.get("/api/health")
 def health_check():
@@ -80,6 +85,7 @@ async def upload_document(file: UploadFile = File(...)):
         session_data["processing_time"] = round(processing_time, 2)
         session_data["messages"] = []
         session_data["query_cache"] = {}  # Clear cache for the new document
+        session_data["synthesis_cache"] = {}  # Clear synthesis for the new document
 
         logger.info(f"Successfully processed {file.filename} in {processing_time:.2f}s")
 
@@ -134,6 +140,55 @@ def chat_query_stream(req: QueryRequest):
         logger.error(f"Error streaming answer: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
 
+@app.post("/api/synthesis/stream")
+def synthesis_stream(req: SynthesisRequest):
+    """
+    Stream deep document synthesis (summary, faq, metrics) with automatic caching.
+    """
+    if not session_data["vector_store"] or not session_data["chat_engine"]:
+        raise HTTPException(status_code=400, detail="No active document. Please upload a PDF first.")
+
+    task = req.task.lower().strip()
+    if task not in ["summary", "faq", "metrics"]:
+        task = "summary"
+
+    # Instant return if already synthesized and not forcing refresh
+    if not req.force_refresh and task in session_data["synthesis_cache"]:
+        cached_result = session_data["synthesis_cache"][task]
+        def cached_generator():
+            yield cached_result
+        return StreamingResponse(cached_generator(), media_type="text/plain")
+
+    try:
+        query_map = {
+            "summary": "executive summary background context objectives conclusions results recommendations",
+            "faq": "frequently asked questions key definitions core principles methodology findings",
+            "metrics": "quantitative metrics percentages statistics data dates deadlines milestones budget financials"
+        }
+        search_query = query_map.get(task, query_map["summary"])
+        relevant_docs = session_data["vector_store"].similarity_search(search_query, k=6)
+
+        def synthesis_generator():
+            accumulated = []
+            for token in session_data["chat_engine"].generate_synthesis(task, relevant_docs):
+                accumulated.append(token)
+                yield token
+            session_data["synthesis_cache"][task] = "".join(accumulated)
+
+        return StreamingResponse(synthesis_generator(), media_type="text/plain")
+
+    except Exception as e:
+        logger.error(f"Error generating synthesis for {task}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to synthesize {task}: {str(e)}")
+
+@app.get("/api/synthesis/status")
+def synthesis_status():
+    return {
+        "available_tasks": ["summary", "faq", "metrics"],
+        "cached_tasks": list(session_data["synthesis_cache"].keys()),
+        "has_document": session_data["vector_store"] is not None
+    }
+
 @app.post("/api/clear")
 def clear_chat():
     session_data["messages"] = []
@@ -150,4 +205,5 @@ def reset_document():
     session_data["processing_time"] = 0.0
     session_data["messages"] = []
     session_data["query_cache"] = {}
+    session_data["synthesis_cache"] = {}
     return {"status": "reset"}

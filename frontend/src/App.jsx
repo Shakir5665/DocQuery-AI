@@ -14,6 +14,104 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
+// Pre-built prompt playbook for Phase 1
+const PLAYBOOK_PROMPTS = [
+  {
+    id: 'executive-summary',
+    icon: 'summarize',
+    title: 'Executive Brief',
+    desc: '3-part structured synthesis: context, key findings, and strategic takeaways.',
+    prompt: 'Provide a structured 3-part executive summary highlighting context, core findings, and strategic recommendations.'
+  },
+  {
+    id: 'risks',
+    icon: 'warning',
+    title: 'Risks & Red Flags',
+    desc: 'Audit critical liabilities, red flags, compliance concerns, or vulnerabilities.',
+    prompt: 'Identify and list all potential risks, vulnerabilities, liabilities, and cautionary factors mentioned in this document.'
+  },
+  {
+    id: 'action-items',
+    icon: 'checklist',
+    title: 'Action Items & Deliverables',
+    desc: 'Extract explicit tasks, assignees, obligations, and deadlines into a checklist.',
+    prompt: 'Extract all explicit action items, deliverables, assignees, and deadlines into a clear checklist.'
+  },
+  {
+    id: 'financial-metrics',
+    icon: 'query_stats',
+    title: 'Quantitative & Metrics Table',
+    desc: 'Extract numerical metrics, financial figures, percentages, and milestone dates.',
+    prompt: 'Extract and summarize all critical financial figures, statistics, milestones, and numerical benchmarks from this document into a structured table.'
+  },
+  {
+    id: 'faq',
+    icon: 'help_outline',
+    title: 'Critical Q&A Guide',
+    desc: 'Top questions and answers any stakeholder, auditor, or leader will ask.',
+    prompt: 'What are the top 5 most critical questions an executive or stakeholder would ask about this document, and what are the exact answers?'
+  },
+  {
+    id: 'strengths-tradeoffs',
+    icon: 'balance',
+    title: 'Strengths & Trade-offs',
+    desc: 'Critical evaluation of core pros, cons, constraints, and assumptions.',
+    prompt: 'Critically analyze the primary strengths, benefits, and drawbacks or limitations discussed in this document.'
+  }
+];
+
+// Reusable Markdown Renderer Component
+const MarkdownRenderer = ({ content }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      h1: ({ node, ...props }) => (
+        <h1 className="font-headline text-base sm:text-lg font-bold text-on-surface mt-4 mb-2 border-b border-outline-variant/60 pb-1" {...props} />
+      ),
+      h2: ({ node, ...props }) => (
+        <h2 className="font-headline text-sm sm:text-base font-bold text-on-surface mt-3.5 mb-2" {...props} />
+      ),
+      h3: ({ node, ...props }) => (
+        <h3 className="font-headline text-xs sm:text-[13px] font-bold text-primary mt-3 mb-1.5 flex items-center gap-1.5" {...props} />
+      ),
+      p: ({ node, ...props }) => (
+        <p className="mb-2 leading-relaxed text-on-surface text-xs sm:text-[13px]" {...props} />
+      ),
+      ul: ({ node, ...props }) => (
+        <ul className="list-disc pl-5 mb-2.5 space-y-1 text-on-surface text-xs sm:text-[13px]" {...props} />
+      ),
+      ol: ({ node, ...props }) => (
+        <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-on-surface text-xs sm:text-[13px]" {...props} />
+      ),
+      li: ({ node, ...props }) => (
+        <li className="leading-relaxed" {...props} />
+      ),
+      table: ({ node, ...props }) => (
+        <div className="my-3 overflow-x-auto rounded-xl border border-outline-variant bg-surface-bright shadow-xs">
+          <table className="w-full text-left border-collapse text-xs" {...props} />
+        </div>
+      ),
+      thead: ({ node, ...props }) => (
+        <thead className="bg-surface-container-low border-b border-outline-variant text-on-surface font-semibold" {...props} />
+      ),
+      th: ({ node, ...props }) => (
+        <th className="py-2.5 px-3.5 text-xs font-bold text-on-surface uppercase tracking-wider" {...props} />
+      ),
+      td: ({ node, ...props }) => (
+        <td className="py-2 px-3.5 border-b border-outline-variant/50 text-xs text-on-surface-variant" {...props} />
+      ),
+      strong: ({ node, ...props }) => (
+        <strong className="font-bold text-on-surface" {...props} />
+      ),
+      blockquote: ({ node, ...props }) => (
+        <blockquote className="border-l-3 border-primary bg-surface-container-low/70 py-1.5 px-3 rounded-r-lg text-xs italic text-on-surface-variant my-2" {...props} />
+      ),
+    }}
+  >
+    {content}
+  </ReactMarkdown>
+);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('documents');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,6 +124,23 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadError, setUploadError] = useState('');
+
+  // Phase 1: Recent Queries state
+  const [recentQueries, setRecentQueries] = useState(() => {
+    try {
+      const saved = localStorage.getItem('docquery_recent_queries');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [queryFilter, setQueryFilter] = useState('');
+
+  // Phase 2: Synthesis Studio state
+  const [synthesisTask, setSynthesisTask] = useState('summary'); // 'summary' | 'faq' | 'metrics'
+  const [synthesisData, setSynthesisData] = useState({ summary: '', faq: '', metrics: '' });
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [synthesisCopied, setSynthesisCopied] = useState(false);
 
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -84,6 +199,7 @@ export default function App() {
       setDocumentName(data.document_name);
       setStats({ chunks: data.chunk_count, time: data.processing_time });
       setMessages([]);
+      setSynthesisData({ summary: '', faq: '', metrics: '' });
       setSidebarOpen(false);
     } catch (err) {
       setUploadError(err.message);
@@ -92,7 +208,7 @@ export default function App() {
     }
   };
 
-  // Improvement 1: Fast Token Streaming Handler
+  // Phase 1: Fast Token Streaming Handler & Recent Query Logger
   const handleSendMessage = async (textToSend) => {
     const question = (textToSend || inputValue).trim();
     if (!question || isThinking) return;
@@ -108,6 +224,8 @@ export default function App() {
 
     setMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     setIsThinking(true);
+
+    let fullAnswer = '';
 
     try {
       const res = await fetch(`${API_BASE}/api/chat/stream`, {
@@ -130,6 +248,7 @@ export default function App() {
         done = streamDone;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
+          fullAnswer += chunk;
           setMessages((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
@@ -142,6 +261,26 @@ export default function App() {
             return updated;
           });
         }
+      }
+
+      // Record to recent queries
+      if (fullAnswer) {
+        const historyItem = {
+          id: Date.now(),
+          question,
+          answer: fullAnswer,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: new Date().toLocaleDateString(),
+          docName: documentName || 'Active PDF'
+        };
+        setRecentQueries((prev) => {
+          const filtered = prev.filter((q) => q.question.toLowerCase() !== question.toLowerCase());
+          const updated = [historyItem, ...filtered].slice(0, 50);
+          try {
+            localStorage.setItem('docquery_recent_queries', JSON.stringify(updated));
+          } catch { }
+          return updated;
+        });
       }
     } catch (err) {
       setMessages((prev) => {
@@ -161,6 +300,70 @@ export default function App() {
     }
   };
 
+  // Phase 2: Synthesis Stream Requester
+  const fetchSynthesis = async (taskToFetch = synthesisTask, forceRefresh = false) => {
+    if (!documentProcessed || isSynthesizing) return;
+    if (!forceRefresh && synthesisData[taskToFetch]) return;
+
+    setIsSynthesizing(true);
+    setSynthesisData((prev) => ({ ...prev, [taskToFetch]: '' }));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/synthesis/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task: taskToFetch, force_refresh: forceRefresh }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'Failed to synthesize document');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          setSynthesisData((prev) => ({
+            ...prev,
+            [taskToFetch]: (prev[taskToFetch] || '') + chunk,
+          }));
+        }
+      }
+    } catch (err) {
+      setSynthesisData((prev) => ({
+        ...prev,
+        [taskToFetch]: `Error generating ${taskToFetch}: ${err.message}`,
+      }));
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
+  // Auto-fetch synthesis when entering synthesis tab or changing task
+  useEffect(() => {
+    if (activeTab === 'synthesis' && documentProcessed) {
+      if (!synthesisData[synthesisTask] && !isSynthesizing) {
+        fetchSynthesis(synthesisTask);
+      }
+    }
+  }, [activeTab, synthesisTask, documentProcessed]);
+
+  const handleExportMarkdown = (content, filename = 'docquery-export.md') => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleReset = async () => {
     await fetch(`${API_BASE}/api/reset`, { method: 'POST' }).catch(() => { });
     setDocumentProcessed(false);
@@ -169,12 +372,17 @@ export default function App() {
     setMessages([]);
     setStats({ chunks: 0, time: 0 });
     setSidebarOpen(false);
+    setSynthesisData({ summary: '', faq: '', metrics: '' });
   };
 
   const handleClearHistory = async () => {
     await fetch(`${API_BASE}/api/clear`, { method: 'POST' }).catch(() => { });
     setMessages([]);
   };
+
+  const filteredQueries = recentQueries.filter((q) =>
+    q.question.toLowerCase().includes(queryFilter.toLowerCase())
+  );
 
   return (
     <div className="flex h-screen w-screen bg-background font-sans select-none overflow-hidden text-on-surface">
@@ -437,8 +645,328 @@ export default function App() {
           </div>
         </header>
 
-        {/* Content View: Welcome Screen OR Chat View */}
-        {!documentProcessed ? (
+        {/* Main Conditional View based on activeTab */}
+        {activeTab === 'queries' ? (
+          /* ==================== PHASE 1: RECENT QUERIES & PLAYBOOK VIEW ==================== */
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center w-full">
+            <div className="w-full max-w-5xl flex flex-col gap-6">
+              {/* Header Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant">
+                <div>
+                  <h1 className="font-headline text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-[24px]">history</span>
+                    <span>Recent Queries & Prompt Playbook</span>
+                  </h1>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Review past answers, run pre-engineered inquiry workflows, and export logs.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {recentQueries.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => {
+                          const md = recentQueries
+                            .map(
+                              (q) =>
+                                `## Q: ${q.question}\n*Asked on ${q.date} at ${q.time} (${q.docName})*\n\n${q.answer}\n\n---\n`
+                            )
+                            .join('\n');
+                          handleExportMarkdown(`# DocQuery AI - Investigation Log\n\n${md}`, 'docquery-query-history.md');
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface flex items-center gap-1.5 transition-colors shadow-xs"
+                      >
+                        <span className="material-symbols-outlined text-[16px] text-primary">download</span>
+                        <span>Export History (.md)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Clear all recorded query history from this browser?')) {
+                            setRecentQueries([]);
+                            localStorage.removeItem('docquery_recent_queries');
+                          }
+                        }}
+                        className="p-1.5 rounded-lg border border-outline-variant/60 hover:bg-red-50 hover:text-red-600 text-xs text-on-surface-variant flex items-center justify-center transition-colors"
+                        title="Clear History"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 1: Pre-Engineered Prompt Playbook */}
+              <section className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-headline text-sm font-bold text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">auto_stories</span>
+                    <span>Prompt Playbook</span>
+                  </h2>
+                  <span className="text-[11px] text-outline">Click any card to launch immediately</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {PLAYBOOK_PROMPTS.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab('documents');
+                        if (documentProcessed) {
+                          handleSendMessage(item.prompt);
+                        } else {
+                          setInputValue(item.prompt);
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-primary hover:shadow-md cursor-pointer transition-all flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="w-8 h-8 rounded-lg bg-primary-container/10 text-primary flex items-center justify-center mb-2.5 group-hover:bg-primary-container group-hover:text-white transition-colors">
+                          <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                        </div>
+                        <h3 className="font-headline font-semibold text-xs text-on-surface group-hover:text-primary transition-colors">
+                          {item.title}
+                        </h3>
+                        <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed">
+                          {item.desc}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-outline-variant/40 flex items-center justify-between text-[11px] font-semibold text-primary">
+                        <span>Execute Workflow</span>
+                        <span className="material-symbols-outlined text-[16px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Section 2: Chronological Query History */}
+              <section className="flex flex-col gap-3 mt-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h2 className="font-headline text-sm font-bold text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">schedule</span>
+                    <span>Previous Questions ({recentQueries.length})</span>
+                  </h2>
+                  {recentQueries.length > 0 && (
+                    <div className="relative w-full sm:w-64">
+                      <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-outline">search</span>
+                      <input
+                        type="text"
+                        value={queryFilter}
+                        onChange={(e) => setQueryFilter(e.target.value)}
+                        placeholder="Filter previous queries..."
+                        className="w-full h-8 pl-8 pr-3 bg-surface-container-low border border-outline-variant focus:border-primary rounded-lg text-xs outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {filteredQueries.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-surface-container-lowest border border-outline-variant/80 text-center flex flex-col items-center justify-center gap-2 shadow-xs">
+                    <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-outline">
+                      <span className="material-symbols-outlined text-[26px]">chat_bubble_outline</span>
+                    </div>
+                    <p className="text-xs font-semibold text-on-surface">No queries recorded yet</p>
+                    <p className="text-[11px] text-outline max-w-sm">
+                      Ask questions in the Document Chat or click a prompt from the Playbook above to build your audit log.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {filteredQueries.map((q) => (
+                      <div
+                        key={q.id}
+                        className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant hover:border-outline transition-all flex flex-col gap-2.5 shadow-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-md bg-primary-container/10 text-primary flex items-center justify-center text-[12px] font-bold shrink-0">
+                              Q
+                            </span>
+                            <h4 className="font-headline text-xs font-bold text-on-surface">{q.question}</h4>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-outline px-2 py-0.5 rounded-full bg-surface-container">
+                              {q.time}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setActiveTab('documents');
+                                handleSendMessage(q.question);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-primary-container hover:text-white text-[11px] font-semibold text-on-surface transition-colors flex items-center gap-1"
+                              title="Re-run query"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">replay</span>
+                              <span>Re-run</span>
+                            </button>
+                          </div>
+                        </div>
+                        {q.answer && (
+                          <div className="text-xs text-on-surface-variant bg-surface-container-low/40 rounded-lg p-3.5 max-h-48 overflow-y-auto leading-relaxed border border-outline-variant/40">
+                            <MarkdownRenderer content={q.answer} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </main>
+        ) : activeTab === 'synthesis' ? (
+          /* ==================== PHASE 2: SYNTHESIS STUDIO VIEW ==================== */
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center w-full">
+            <div className="w-full max-w-5xl flex flex-col gap-6">
+              {!documentProcessed ? (
+                /* Empty state prompt */
+                <div className="p-8 sm:p-12 rounded-2xl bg-surface-container-lowest border border-outline-variant text-center flex flex-col items-center justify-center gap-4 max-w-lg mx-auto shadow-sm my-12">
+                  <div className="w-16 h-16 rounded-2xl bg-primary-container/10 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[36px]">auto_awesome</span>
+                  </div>
+                  <div>
+                    <h2 className="font-headline text-lg font-bold text-on-surface">Document Required for Synthesis</h2>
+                    <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+                      The Synthesis Studio performs deep document extraction to generate Executive Summaries, FAQs, and Quantitative Data Tables. Please upload a PDF to begin.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab('documents');
+                      fileInputRef.current?.click();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-primary-container text-white text-xs font-semibold hover:opacity-95 shadow transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                    <span>Upload PDF Document</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Synthesis Studio Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant">
+                    <div>
+                      <h1 className="font-headline text-xl sm:text-2xl font-bold text-on-surface flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-[24px]">auto_awesome</span>
+                        <span>Document Synthesis Studio</span>
+                      </h1>
+                      <p className="text-xs text-on-surface-variant mt-0.5">
+                        Deep, autonomous intelligence extracted from <strong className="text-on-surface">{documentName}</strong>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => fetchSynthesis(synthesisTask, true)}
+                        disabled={isSynthesizing}
+                        className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                        title="Regenerate this synthesis"
+                      >
+                        <span className={`material-symbols-outlined text-[16px] text-primary ${isSynthesizing ? 'animate-spin' : ''}`}>
+                          refresh
+                        </span>
+                        <span>{isSynthesizing ? 'Synthesizing...' : 'Regenerate'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (synthesisData[synthesisTask]) {
+                            navigator.clipboard.writeText(synthesisData[synthesisTask]);
+                            setSynthesisCopied(true);
+                            setTimeout(() => setSynthesisCopied(false), 2000);
+                          }
+                        }}
+                        disabled={!synthesisData[synthesisTask]}
+                        className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
+                      >
+                        <span className="material-symbols-outlined text-[16px] text-secondary">
+                          {synthesisCopied ? 'done' : 'content_copy'}
+                        </span>
+                        <span>{synthesisCopied ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (synthesisData[synthesisTask]) {
+                            handleExportMarkdown(
+                              `# ${documentName} - ${synthesisTask.toUpperCase()} SYNTHESIS\n\n${synthesisData[synthesisTask]}`,
+                              `${documentName}-${synthesisTask}.md`
+                            );
+                          }
+                        }}
+                        disabled={!synthesisData[synthesisTask]}
+                        className="px-3 py-1.5 rounded-lg bg-primary-container text-white text-xs font-semibold hover:opacity-95 flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">download</span>
+                        <span>Export (.md)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Sub-Tabs: Executive Brief | FAQ | Metrics */}
+                  <div className="flex items-center gap-2 border-b border-outline-variant/60 pb-2 overflow-x-auto">
+                    {[
+                      { id: 'summary', label: 'Executive Brief', icon: 'summarize' },
+                      { id: 'faq', label: 'Auto-Generated FAQ', icon: 'help_center' },
+                      { id: 'metrics', label: 'Key Metrics & Data', icon: 'query_stats' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setSynthesisTask(tab.id);
+                          if (!synthesisData[tab.id]) {
+                            fetchSynthesis(tab.id);
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                          synthesisTask === tab.id
+                            ? 'bg-primary-container text-white shadow-sm'
+                            : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                        <span>{tab.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Synthesis Viewer Container */}
+                  <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 sm:p-8 shadow-sm space-y-4 min-h-[300px]">
+                    {isSynthesizing && !synthesisData[synthesisTask] ? (
+                      <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+                        <span className="material-symbols-outlined animate-spin text-[36px] text-primary">progress_activity</span>
+                        <p className="font-headline text-sm font-semibold text-on-surface">Analyzing & Synthesizing Document...</p>
+                        <p className="text-xs text-outline max-w-sm">
+                          Synthesizing key sections and building structured insights with Gemini AI.
+                        </p>
+                      </div>
+                    ) : synthesisData[synthesisTask] ? (
+                      <div className="formatted-doc-content text-xs sm:text-[13px] text-on-surface leading-relaxed">
+                        <MarkdownRenderer content={synthesisData[synthesisTask]} />
+                        {isSynthesizing && (
+                          <div className="flex items-center gap-2 mt-4 text-xs text-primary font-medium animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                            <span>Generating additional sections...</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+                        <p className="text-xs text-outline">Click "Synthesize Now" to produce this report.</p>
+                        <button
+                          onClick={() => fetchSynthesis(synthesisTask)}
+                          className="px-4 py-2 rounded-xl bg-primary-container text-white text-xs font-semibold hover:opacity-95"
+                        >
+                          Synthesize Now
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </main>
+        ) : (
+          /* ==================== DEFAULT: DOCUMENTS VIEW (Upload OR Chat Stream) ==================== */
+          !documentProcessed ? (
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center w-full">
             <div className="w-full max-w-5xl flex flex-col gap-6">
               {/* Stitch Hero Banner */}
@@ -611,54 +1139,7 @@ export default function App() {
                           {/* Beautifully Rendered Markdown Content */}
                           <div className="formatted-doc-content text-xs sm:text-[13px] text-on-surface leading-relaxed">
                             {msg.content ? (
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  h1: ({ node, ...props }) => (
-                                    <h1 className="font-headline text-base font-bold text-on-surface mt-3 mb-1.5" {...props} />
-                                  ),
-                                  h2: ({ node, ...props }) => (
-                                    <h2 className="font-headline text-sm font-bold text-on-surface mt-3 mb-1.5" {...props} />
-                                  ),
-                                  h3: ({ node, ...props }) => (
-                                    <h3 className="font-headline text-xs sm:text-[13px] font-bold text-primary mt-2.5 mb-1" {...props} />
-                                  ),
-                                  p: ({ node, ...props }) => (
-                                    <p className="mb-2 leading-relaxed text-on-surface" {...props} />
-                                  ),
-                                  ul: ({ node, ...props }) => (
-                                    <ul className="list-disc pl-5 mb-2.5 space-y-1 text-on-surface" {...props} />
-                                  ),
-                                  ol: ({ node, ...props }) => (
-                                    <ol className="list-decimal pl-5 mb-2.5 space-y-1 text-on-surface" {...props} />
-                                  ),
-                                  li: ({ node, ...props }) => (
-                                    <li className="leading-relaxed" {...props} />
-                                  ),
-                                  table: ({ node, ...props }) => (
-                                    <div className="my-3 overflow-x-auto rounded-xl border border-outline-variant bg-surface-bright shadow-xs">
-                                      <table className="w-full text-left border-collapse text-xs" {...props} />
-                                    </div>
-                                  ),
-                                  thead: ({ node, ...props }) => (
-                                    <thead className="bg-surface-container-low border-b border-outline-variant text-on-surface font-semibold" {...props} />
-                                  ),
-                                  th: ({ node, ...props }) => (
-                                    <th className="py-2.5 px-3.5 text-xs font-bold text-on-surface uppercase tracking-wider" {...props} />
-                                  ),
-                                  td: ({ node, ...props }) => (
-                                    <td className="py-2 px-3.5 border-b border-outline-variant/50 text-xs text-on-surface-variant" {...props} />
-                                  ),
-                                  strong: ({ node, ...props }) => (
-                                    <strong className="font-bold text-on-surface" {...props} />
-                                  ),
-                                  blockquote: ({ node, ...props }) => (
-                                    <blockquote className="border-l-3 border-primary bg-surface-container-low/70 py-1.5 px-3 rounded-r-lg text-xs italic text-on-surface-variant my-2" {...props} />
-                                  ),
-                                }}
-                              >
-                                {msg.content}
-                              </ReactMarkdown>
+                              <MarkdownRenderer content={msg.content} />
                             ) : (
                               <div className="flex items-center gap-2 text-xs text-outline italic">
                                 <span className="material-symbols-outlined animate-spin text-[16px] text-primary">progress_activity</span>
@@ -702,7 +1183,7 @@ export default function App() {
               </form>
             </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

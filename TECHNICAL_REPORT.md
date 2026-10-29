@@ -149,20 +149,21 @@ flowchart TD
   - `GET /api/health`: Provides active system state, including whether a document is loaded, document name, chunk count, and processing telemetry.
   - `POST /api/upload`: Handles multipart PDF uploads, resets session memory, and builds the FAISS index.
   - `POST /api/chat/stream`: Accepts `{ "question": "..." }`, checks the in-memory cache, queries FAISS, and returns a `StreamingResponse(token_generator(), media_type="text/plain")`.
+  - `POST /api/synthesis/stream`: Streams deep document synthesis (`summary`, `faq`, `metrics`) utilizing targeted vector similarity queries with automatic memory caching (`session_data["synthesis_cache"]`).
+  - `GET /api/synthesis/status`: Returns cached synthesis tasks and document status.
   - `POST /api/clear`: Flushes conversation history while retaining the vector store.
-  - `POST /api/reset`: Fully clears the active vector store, conversation memory, and session state.
-- **In-Memory Query Cache:**
-  - Incoming questions are normalized (`question.lower().strip()`).
-  - Frequent questions yield instantaneous responses from `session_data["query_cache"]`, bypassing vector search and LLM API calls entirely.
+  - `POST /api/reset`: Fully clears the active vector store, conversation memory, synthesis cache, and session state.
+- **In-Memory Query & Synthesis Cache:**
+  - Incoming questions and synthesis tasks are cached in memory for zero-latency instant retrieval upon subsequent requests.
 
 ### 4.5 Modern Frontend Application (`frontend/src/App.jsx`)
-- **UI Architecture:** Built with React 19, Vite 8, and Tailwind CSS leveraging semantic design tokens.
+- **UI Architecture:** Built with React 19, Vite 8, and Tailwind CSS leveraging Google Stitch semantic design tokens.
 - **Dynamic API Resolution:** Intelligent auto-configuration handles environment variables from Render, local development (`http://localhost:8000`), or bare service hostnames.
-- **Stream Consumption:** `handleSendMessage` employs a `ReadableStreamDefaultReader` on the HTTP response body, updating React state continuously with decoded token chunks to deliver zero-latency typing effects.
-- **Rich Document Insights:** Provides an interactive dual-panel layout:
-  - Sidebar with document stats (chunks, processing speed, status badges, quick questions).
-  - Main panel with categorized tabs (Document Viewer, Smart Summary, FAQ Generator, Interactive Chat).
-  - Markdown rendered with `react-markdown` and `remark-gfm`.
+- **Multi-View Workspace Navigation:**
+  - **📁 Documents**: Document intake upload dropzone and live conversational stream with streaming markdown.
+  - **🕒 Recent Queries & Playbook**: Complete chronological audit log of past questions/answers (persisted in `localStorage`), instant query re-execution, search filtering, one-click markdown export, and a curated 6-card Prompt Playbook (Executive Brief, Risks & Red Flags, Action Items, Financial Metrics, Q&A Guide, Strengths & Trade-offs).
+  - **✨ Synthesis Studio**: Dedicated autonomous synthesis suite featuring sub-tabs for Executive Briefs, Auto-Generated FAQs, and Structured Metrics/Dates Tables with live token streaming, markdown export, and one-click clipboard copying.
+- **Stream Consumption:** `handleSendMessage` and `fetchSynthesis` employ a `ReadableStreamDefaultReader` on the HTTP response body, updating React state continuously with decoded token chunks to deliver zero-latency typing effects.
 
 ---
 
