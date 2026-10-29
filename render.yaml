@@ -5,6 +5,7 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: free
     envVars:
       - key: GOOGLE_API_KEY
         sync: false
@@ -22,4 +23,3 @@ services:
           type: web
           name: docquery-backend
           property: host
-
