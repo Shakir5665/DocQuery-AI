@@ -195,11 +195,13 @@ export default function App() {
           {/* Logo & Mobile Close Button */}
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-sm shadow-primary/20">
-                <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
-              </div>
+              <img
+                src="/docquery-logo.png"
+                alt="DocQuery AI Logo"
+                className="w-10 h-10 rounded-xl object-cover shadow-sm shadow-primary/20 ring-1 ring-outline-variant/40"
+              />
               <div className="flex flex-col">
-                <span className="font-headline font-bold text-lg text-on-surface leading-tight">DocQuery</span>
+                <span className="font-headline font-bold text-lg text-on-surface leading-tight">DocQuery AI</span>
                 <span className="text-[12px] text-outline font-normal">Intelligent Assistant</span>
               </div>
             </div>
@@ -219,8 +221,8 @@ export default function App() {
                 setSidebarOpen(false);
               }}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${activeTab === 'documents'
-                  ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
                 }`}
             >
               <span className="material-symbols-outlined text-[20px]">folder_open</span>
@@ -232,8 +234,8 @@ export default function App() {
                 setSidebarOpen(false);
               }}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${activeTab === 'queries'
-                  ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
                 }`}
             >
               <span className="material-symbols-outlined text-[20px]">history</span>
@@ -245,8 +247,8 @@ export default function App() {
                 setSidebarOpen(false);
               }}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${activeTab === 'synthesis'
-                  ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
-                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                ? 'text-primary bg-surface-container-high font-semibold border-l-2 border-primary'
+                : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
                 }`}
             >
               <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
@@ -427,9 +429,11 @@ export default function App() {
               <span className="hidden sm:inline">Share</span>
             </button>
             <div className="h-4 w-px bg-outline-variant mx-0.5"></div>
-            <div className="w-7 h-7 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs">
-              DQ
-            </div>
+            <img
+              src="/docquery-logo.png"
+              alt="DocQuery App Icon"
+              className="w-7 h-7 rounded-lg object-cover ring-1 ring-outline-variant/60 shadow-xs"
+            />
           </div>
         </header>
 
@@ -438,7 +442,7 @@ export default function App() {
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col items-center w-full">
             <div className="w-full max-w-5xl flex flex-col gap-6">
               {/* Stitch Hero Banner */}
-              <div className="relative overflow-hidden rounded-2xl p-6 sm:p-8 lg:p-10 bg-gradient-to-br from-[#0f172a] via-[#131d36] to-[#1e293b] border border-slate-700/60 shadow-lg text-white">
+              <div className="relative overflow-hidden rounded-2xl p-6 sm:p-8 lg:p-10 bg-gradient-to-br from-[#0f172a] via-[#131d36] to-[#1e293b] border border-slate-700/60 shadow-lg text-white flex items-center justify-between">
                 <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-primary-container/20 blur-3xl pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col items-start max-w-2xl">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-sm mb-4">
@@ -471,6 +475,17 @@ export default function App() {
                     <span className="text-[11px] sm:text-xs text-slate-400">or use the upload dropzone</span>
                   </div>
                 </div>
+
+                {/* Hero Banner Floating 3D Logo Mark */}
+                <div className="hidden md:flex relative z-10 shrink-0 pl-6">
+                  <div className="relative p-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shadow-2xl">
+                    <img
+                      src="/docquery-logo.png"
+                      alt="DocQuery AI"
+                      className="w-28 h-28 lg:w-36 lg:h-36 rounded-xl object-cover shadow-inner"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* 3-Step Walkthrough */}
@@ -492,7 +507,7 @@ export default function App() {
                     </div>
                     <h3 className="font-headline font-semibold text-sm text-on-surface">2. Click Read Document</h3>
                     <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
-                      DocQuery prepares the content in seconds, structuring sections quietly.
+                      DocQuery AI prepares the content in seconds, structuring sections quietly.
                     </p>
                   </div>
                   <div className="bg-surface-container-lowest border border-outline-variant hover:border-outline hover:shadow-sm rounded-xl p-4 sm:p-5 transition-all">
@@ -578,13 +593,15 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="flex items-start gap-2.5 sm:gap-3 w-full">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-primary-container text-white flex items-center justify-center shrink-0 shadow-sm mt-1">
-                          <span className="material-symbols-outlined text-[16px] sm:text-[18px]">auto_awesome</span>
-                        </div>
+                        <img
+                          src="/docquery-logo.png"
+                          alt="DocQuery AI Assistant"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl object-cover shrink-0 shadow-sm mt-1 ring-1 ring-primary/20"
+                        />
                         <div className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
                           <div className="flex items-center justify-between border-b border-outline-variant/60 pb-2.5">
                             <span className="font-headline text-xs font-bold text-on-surface flex items-center gap-1.5">
-                              <span>DocQuery Assistant</span>
+                              <span>DocQuery AI Assistant</span>
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-surface-container text-primary">
                               Verified
