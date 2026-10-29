@@ -2,7 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const getApiBase = () => {
+  const url = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url.replace(/\/+$/, '');
+  }
+  // Render's property: host passes either just the service name or hostname
+  const host = url.includes('.') ? url : `${url}.onrender.com`;
+  return `https://${host}`.replace(/\/+$/, '');
+};
+
+const API_BASE = getApiBase();
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('documents');
