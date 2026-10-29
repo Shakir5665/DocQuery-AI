@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docquery-logo.png" alt="DocQuery AI Logo" width="128" style="border-radius: 28px; box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);" />
+  <img src="./frontend/public/docquery-logo.png" alt="DocQuery AI Logo" width="128" style="border-radius: 28px; box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);" />
   <h1>DocQuery AI</h1>
   <p><strong>Intelligent Document Assistant & Semantic RAG Engine</strong></p>
   <p>Enterprise-grade PDF Analysis application powered by Google Gemini AI, FastAPI, and React 19 (Vite). Designed with <strong>Google Stitch Design Tokens</strong>.</p>
